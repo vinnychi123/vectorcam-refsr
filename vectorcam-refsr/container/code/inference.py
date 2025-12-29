@@ -42,8 +42,8 @@ def model_fn(model_dir):
     model = TTSR(Args())
     
     # In SageMaker, model artifacts are unzipped to 'model_dir'
-    # We expect 'TTSR-rec (1).pt' to be there.
-    path = os.path.join(model_dir, 'TTSR-rec (1).pt')
+    # We expect 'TTSR-rec.pt' to be there.
+    path = os.path.join(model_dir, 'TTSR-rec.pt')
 
     if not os.path.exists(path):
         raise FileNotFoundError(f"Model file not found at {path}")

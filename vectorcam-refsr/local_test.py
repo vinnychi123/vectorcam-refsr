@@ -34,7 +34,7 @@ def run_test():
     model = TTSR(Args())
     
     # Load the weights you verified earlier
-    checkpoint = torch.load('model/checkpoints/TTSR.pt', map_location=device)
+    checkpoint = torch.load('model/checkpoints/TTSR-rec.pt', map_location=device)
     
     # Handle the 'state_dict' structure if present
     if 'state_dict' in checkpoint:
