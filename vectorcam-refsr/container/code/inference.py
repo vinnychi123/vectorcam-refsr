@@ -5,6 +5,7 @@ import logging
 import torch
 import io
 import numpy as np
+import boto3
 from PIL import Image
 from torchvision import transforms
 
@@ -23,9 +24,22 @@ except ImportError as e:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 s3 = boto3.client('s3')
 
+# Transform pipeline for input images
+trans = transforms.Compose([
+    transforms.Resize((160, 160)),
+    transforms.ToTensor()
+])
+
+# Args class required by TTSR model
+class Args:
+    def __init__(self):
+        self.num_res_blocks = '16+16+8+4+4'
+        self.n_feats = 64
+        self.res_scale = 1.0
+
 def model_fn(model_dir):
     logger.info("Loading model...")
-    model = TTSR()
+    model = TTSR(Args())
     
     # In SageMaker, model artifacts are unzipped to 'model_dir'
     # We expect 'TTSR-rec (1).pt' to be there.
@@ -63,11 +77,13 @@ def input_fn(request_body, request_content_type):
 
         f_input  = io.BytesIO()
         s3.download_fileobj(bucket, data['input_key'], f_input)
+        f_input.seek(0)  # Reset to beginning before reading
         input_img = Image.open(f_input).convert('RGB')
 
 
         f_ref = io.BytesIO()
         s3.download_fileobj(bucket, data['ref_key'], f_ref)
+        f_ref.seek(0)  # Reset to beginning before reading
         ref_img = Image.open(f_ref).convert('RGB')
 
         input_tensor = trans(input_img).unsqueeze(0)
@@ -77,3 +93,19 @@ def input_fn(request_body, request_content_type):
     else:
         raise ValueError(f"Content type must be application/json")
     
+def predict_fn(input_data, model):
+    lr_tensor, ref_tensor = input_data
+    lr_tensor = lr_tensor.to(device)
+    ref_tensor = ref_tensor.to(device)
+
+    with torch.no_grad():
+        sr_tensor, _, _, _ = model(lr_tensor, ref_tensor)
+
+    return sr_tensor
+
+def output_fn(prediction, response_content_type):
+    res_img = transforms.ToPILImage()(prediction.squeeze(0).cpu())
+    
+    buf = io.BytesIO()
+    res_img.save(buf, format="PNG")
+    return buf.getvalue()
